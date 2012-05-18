@@ -130,13 +130,12 @@ doPage fs page = do
     doc'' <- bottomUpM (handleLinksImages fs) doc'
     putStrLn $ "Adding page: " ++ page'
     let md = writeMarkdown defaultWriterOptions doc''
-    -- add header with categories and title
+    -- add header with categories
     addToWiki fs fname $
-       "---\ntitle: " ++ page' ++
        (if null categories
            then ""
-           else "\ncategories: " ++ intercalate "," categories) ++
-       "\n...\n\n" ++ md ++ "\n"
+           else "---\ncategories: " ++ intercalate "," categories ++ "\n...\n\n")
+       ++ md ++ "\n"
 
 -- remove <table id="toc"> (TOC)
 removeToc :: [Tag String] -> [Tag String]
