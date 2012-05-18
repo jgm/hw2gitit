@@ -94,7 +94,7 @@ getPageNames (t:ts) = getPageNames ts
 
 -- convert URL to page name
 fromUrl :: String -> String
-fromUrl = fromUrlString . decodeString . unEscapeString
+fromUrl = fromUrlString . decodeString . unEscapeString . takeWhile (/='?')
 
 -- filestore can't deal with ? and * in filenames
 fromUrlString :: String -> String
@@ -107,57 +107,54 @@ doPage fs page = do
   let page' = fromUrl page
   let dropDots = filter (/='.')
   let fname = dropDots page' ++ ".page"
-  -- if page already in the wiki, skip it
-  catch (latest fs fname >> putStrLn ("Skipping " ++ fname)) $
-       \(e :: FileStoreError) -> do
 
-    -- first, check mediawiki source to make sure it's not a redirect page
-    mwsrc <- openURL' $ "http://www.haskell.org/haskellwiki/index.php?title=" ++ page ++ "&action=edit"
-    let redir = case (drop 1 $ dropWhile (~/= TagOpen "textarea" [("id","wpTextbox1")])
-                             $ parseTags mwsrc) of
-                    (TagText ('#':'r':'e':'d':'i':'r':'e':'c':'t':' ':'[':'[':xs):_) ->
-                           takeWhile (/=']') xs
-                    (TagText ('#':'R':'E':'D':'I':'R':'E':'C':'T':' ':'[':'[':xs):_) ->
-                           takeWhile (/=']') xs
-                    (TagText ('#':'R':'e':'d':'i':'r':'e':'c':'t':' ':'[':'[':xs):_) ->
-                           takeWhile (/=']') xs
-                    _ -> ""
+  -- first, check mediawiki source to make sure it's not a redirect page
+  mwsrc <- openURL' $ "http://www.haskell.org/haskellwiki/index.php?title=" ++ page ++ "&action=edit"
+  let redir = case (drop 1 $ dropWhile (~/= TagOpen "textarea" [("id","wpTextbox1")])
+                           $ parseTags mwsrc) of
+                  (TagText ('#':'r':'e':'d':'i':'r':'e':'c':'t':' ':'[':'[':xs):_) ->
+                         takeWhile (/=']') xs
+                  (TagText ('#':'R':'E':'D':'I':'R':'E':'C':'T':' ':'[':'[':xs):_) ->
+                         takeWhile (/=']') xs
+                  (TagText ('#':'R':'e':'d':'i':'r':'e':'c':'t':' ':'[':'[':xs):_) ->
+                         takeWhile (/=']') xs
+                  _ -> ""
 
-    src <- if null redir
-              then openURL' $ "http://www.haskell.org/haskellwiki/" ++ page
-              else return ""
+  src <- if null redir
+            then openURL' $ "http://www.haskell.org/haskellwiki/" ++ page
+            else return ""
 
-    -- convert the page
-    let nonSpan (TagOpen "span" _) = False
-        nonSpan (TagClose "span")  = False
-        nonSpan _                  = True
-    -- content marked by "start content"/"end content" comments
-    let tags = handleInlineCode    -- change inline code divs to code tags
-               $ removeToc         -- remove TOC
-               $ filter nonSpan    -- remove span tags
-               $ takeWhile (~/= TagComment " end content ")
-               $ dropWhile (~/= TagComment " start content ")
-               $ parseTags
-               $ decodeString src  -- decode UTF-8
-    let (body,foot) = break (~== TagOpen "div" [("class","printfooter")]) tags
-    let categories = getCategories  -- extract categories
-                   $ dropWhile (~/= TagOpen "p" [("class","catlinks")]) foot
-    let html = renderTags body
-    let doc' = bottomUp removeRawInlines   -- remove raw HTML
-               $ bottomUp (handleHeaders . fixCodeBlocks . removeRawBlocks)
-               $ readHtml defaultParserState html
-    -- handle wikilinks and images
-    doc'' <- bottomUpM (handleLinksImages fs) doc'
-    let md = if null redir
-                then writeMarkdown defaultWriterOptions doc''
-                else "See [" ++ redir ++ "]()."
-    -- add header with categories
-    putStrLn $ "Adding page: " ++ page'
-    addToWiki fs fname $
-       (if null categories
-           then ""
-           else "---\ncategories: " ++ intercalate "," categories ++ "\n...\n\n")
-       ++ md ++ "\n"
+  -- convert the page
+  let nonSpan (TagOpen "span" _) = False
+      nonSpan (TagClose "span")  = False
+      nonSpan _                  = True
+  -- content marked by "start content"/"end content" comments
+  let tags = handleInlineCode    -- change inline code divs to code tags
+             $ removeToc         -- remove TOC
+             $ filter nonSpan    -- remove span tags
+             $ takeWhile (~/= TagComment " end content ")
+             $ dropWhile (~/= TagComment " start content ")
+             $ parseTags
+             $ decodeString src  -- decode UTF-8
+  let (body,foot) = break (~== TagOpen "div" [("class","printfooter")]) tags
+  let categories = getCategories  -- extract categories
+                 $ dropWhile (~/= TagOpen "p" [("class","catlinks")]) foot
+  let html = renderTags body
+  let doc' = bottomUp removeRawInlines   -- remove raw HTML
+             $ bottomUp (handleHeaders . fixCodeBlocks . removeRawBlocks)
+             $ readHtml defaultParserState html
+  -- handle wikilinks and images
+  doc'' <- bottomUpM (handleLinksImages fs) doc'
+  let md = if null redir
+              then writeMarkdown defaultWriterOptions doc''
+              else "See [" ++ redir ++ "]()."
+  -- add header with categories
+  putStrLn $ "Adding page: " ++ page'
+  addToWiki fs fname $
+     (if null categories
+         then ""
+         else "---\ncategories: " ++ intercalate "," categories ++ "\n...\n\n")
+     ++ md ++ "\n"
 
 -- remove <table id="toc"> (TOC)
 removeToc :: [Tag String] -> [Tag String]
