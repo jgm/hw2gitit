@@ -185,8 +185,11 @@ handleInlineCode [] = []
 -- adding them to the repository.
 handleLinksImages :: FileStore -> Inline -> IO Inline
 handleLinksImages fs (Link lab (src,tit))
-  | "http://www.haskell.org" `isPrefixOf` src =
-      let drop_prefix = stripPref "http://www.haskell.org"
+  | "http://www.haskell.org/haskellwiki" `isPrefixOf` src ||
+    "http://www.haskell.org/wikiupload" `isPrefixOf` src ||
+    "http://haskell.org/haskellwiki" `isPrefixOf` src ||
+    "http://haskell.org/wikiupload" `isPrefixOf` src =
+      let drop_prefix = stripPref "http://www.haskell.org" . stripPref "http://haskell.org"
       in  handleLinksImages fs (Link lab (drop_prefix src, drop_prefix tit))
   | "/wikiupload/" `isPrefixOf` src = do  -- uploads like ps and pdf files
       let fname = "/Upload/" ++ takeFileName src
@@ -205,8 +208,11 @@ handleLinksImages fs (Link lab (src,tit))
        return $ Link lab ('/':suff,"")
   | otherwise = return $ Link lab (src,tit)
 handleLinksImages fs (Image alt (src,tit))
-  | "http://www.haskell.org" `isPrefixOf` src =
-      let drop_prefix = stripPref "http://www.haskell.org"
+  | "http://www.haskell.org/haskellwiki" `isPrefixOf` src ||
+    "http://www.haskell.org/wikiupload" `isPrefixOf` src ||
+    "http://haskell.org/haskellwiki" `isPrefixOf` src ||
+    "http://haskell.org/wikiupload" `isPrefixOf` src =
+      let drop_prefix = stripPref "http://www.haskell.org" . stripPref "http://haskell.org"
       in  handleLinksImages fs (Image alt (drop_prefix src, drop_prefix tit))
     -- math images have tex source in alt attribute
   | "/wikiupload/math" `isPrefixOf` src =
