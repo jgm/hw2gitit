@@ -189,7 +189,7 @@ handleLinksImages fs (Link lab (src,tit))
       let drop_prefix = stripPref "http://www.haskell.org"
       in  handleLinksImages fs (Link lab (drop_prefix src, drop_prefix tit))
   | "/haskellwiki/Image:" `isPrefixOf` src =
-      return $ Link lab ('/':stripPref "/haskellwiki/Image:" src,tit)
+      return $ Link lab ("/Image/" ++ stripPref "/haskellwiki/Image:" src,tit)
   | "/haskellwiki/" `isPrefixOf` src = do
     let suff = stripPref "/haskellwiki/" src
     if suff == ulToSpace tit then
@@ -207,7 +207,7 @@ handleLinksImages fs (Image alt (src,tit))
   | "/wikiupload/" `isPrefixOf` src = do
       let fname = takeFileName src
       addImage fs fname src
-      return $ Image alt ('/':fname,tit)
+      return $ Image alt ("/Image/" ++ fname,tit)
   | otherwise = return $ Image alt (src,tit)
 handleLinksImages _ x = return x
 
