@@ -5,6 +5,7 @@
 -- Individual HTML pages and images are cached in cache/.
 -- Cache should be deleted for a fresh download.
 
+import Shellish
 import qualified Data.ByteString.Lazy as B
 import qualified Data.ByteString.Lazy.Char8 as BC
 import Prelude hiding (catch)
@@ -59,7 +60,7 @@ openURL' url = do
   return src
 
 indices :: [String]
-indices =  [ "http://www.haskell.org/haskellwiki/Special:Allpages/L" ] -- FOR TESTING
+indices =  [ "http://www.haskell.org/haskellwiki/Special:Allpages/M" ] -- FOR TESTING
 --          [ "http://www.haskell.org/haskellwiki/Special:Allpages/%24"
 --          , "http://www.haskell.org/haskellwiki/Special:Allpages/G"
 --          , "http://www.haskell.org/haskellwiki/Special:Allpages/L"
@@ -109,7 +110,22 @@ doPage fs page = do
   -- if page already in the wiki, skip it
   catch (latest fs fname >> putStrLn ("Skipping " ++ fname)) $
        \(e :: FileStoreError) -> do
-    src <- openURL' $ "http://www.haskell.org/haskellwiki/" ++ page
+
+    -- first, check mediawiki source to make sure it's not a redirect page
+    mwsrc <- openURL' $ "http://www.haskell.org/haskellwiki/index.php?title=" ++ page ++ "&action=edit"
+    let redir = case (drop 1 $ dropWhile (~/= TagOpen "textarea" [("id","wpTextbox1")])
+                             $ parseTags mwsrc) of
+                    (TagText ('#':'r':'e':'d':'i':'r':'e':'c':'t':' ':'[':'[':xs):_) ->
+                           takeWhile (/=']') xs
+                    (TagText ('#':'R':'E':'D':'I':'R':'E':'C':'T':' ':'[':'[':xs):_) ->
+                           takeWhile (/=']') xs
+                    (TagText ('#':'R':'e':'d':'i':'r':'e':'c':'t':' ':'[':'[':xs):_) ->
+                           takeWhile (/=']') xs
+                    _ -> ""
+
+    src <- if null redir
+              then openURL' $ "http://www.haskell.org/haskellwiki/" ++ page
+              else return ""
 
     -- convert the page
     let nonSpan (TagOpen "span" _) = False
@@ -132,9 +148,11 @@ doPage fs page = do
                $ readHtml defaultParserState html
     -- handle wikilinks and images
     doc'' <- bottomUpM (handleLinksImages fs) doc'
-    putStrLn $ "Adding page: " ++ page'
-    let md = writeMarkdown defaultWriterOptions doc''
+    let md = if null redir
+                then writeMarkdown defaultWriterOptions doc''
+                else "See [" ++ redir ++ "]()."
     -- add header with categories
+    putStrLn $ "Adding page: " ++ page'
     addToWiki fs fname $
        (if null categories
            then ""
