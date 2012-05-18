@@ -5,7 +5,8 @@
 -- Individual HTML pages and images are cached in cache/.
 -- Cache should be deleted for a fresh download.
 
-import Shellish
+-- import Shellish
+import Text.Printf
 import qualified Data.ByteString.Lazy as B
 import qualified Data.ByteString.Lazy.Char8 as BC
 import Prelude hiding (catch)
@@ -24,6 +25,11 @@ import System.Environment
 import System.Directory
 import System.FilePath
 
+data Version = Version { vId :: Integer
+                       , vUser :: String
+                       , vDate :: String
+                       , vDescription :: String } deriving (Show)
+
 cache :: FilePath
 cache = "cache/"
 
@@ -38,7 +44,8 @@ main = do
   unless exists $ initialize fs
   pages <- (nub . concat) `fmap` mapM getIndex indices
   -- Add all pages to the repository
-  mapM_ (doPage fs) pages
+  -- mapM_ (doPage fs) pages
+  doPage fs "Monad"
 
 openURL :: String -> IO String
 openURL x = getResponseBody =<< simpleHTTP (getRequest x)
@@ -48,7 +55,7 @@ tr c1 c2 = map (\c -> if c == c1 then c2 else c)
 
 openURL' :: String -> IO String
 openURL' url = do
-  let cachename = cache ++ (tr '/' '+' $ tr '&' '^' $ tr '?' '!' url)
+  let cachename = cache ++ (tr '/' '+' $ tr '&' '^' $ tr '?' '~' url)
   let cachedir = takeDirectory cachename
   createDirectoryIfMissing True cachedir
   cached <- doesFileExist cachename
@@ -104,6 +111,12 @@ fromUrlString = strip . filter (\c -> c /='?' && c/='*') . ulToSpace
 -- add it to the repository.
 doPage :: FileStore -> String -> IO ()
 doPage fs page = do
+  let versions = [ Version {vId=1308, vUser="Ashley Y",vDate="23:54, 4 January 2006",vDescription = "Initial commit"}
+                 , Version {vId=6557, vUser="BrettGiles",vDate="13:54, 17 October 2006",vDescription = "Added Monad category"} ]
+  mapM_ (doPageVersion fs page) versions
+
+doPageVersion :: FileStore -> String -> Version -> IO ()
+doPageVersion fs page version = do
   let page' = fromUrl page
   let dropDots = filter (/='.')
   let fname = dropDots page' ++ ".page"
@@ -121,7 +134,10 @@ doPage fs page = do
                   _ -> ""
 
   src <- if null redir
-            then openURL' $ "http://www.haskell.org/haskellwiki/" ++ page
+            then openURL' $ "http://www.haskell.org/haskellwiki/" ++ page ++
+                    if vId version > 0
+                       then "?oldid=" ++ printf "%06d" (vId version)
+                       else ""
             else return ""
 
   -- convert the page
@@ -149,8 +165,11 @@ doPage fs page = do
               then writeMarkdown defaultWriterOptions doc''
               else "See [" ++ redir ++ "]()."
   -- add header with categories
-  putStrLn $ "Adding page: " ++ page'
-  addToWiki fs fname $
+  putStrLn $ "Adding page " ++ page' ++ " r" ++ show (vId version)
+  let auth = vUser version
+  let descr = vDescription version ++ " (#" ++ show (vId version) ++ ", " ++
+                vDate version ++ ")"
+  addToWiki fs fname auth descr $
      (if null categories
          then ""
          else "---\ncategories: " ++ intercalate "," categories ++ "\n...\n\n")
@@ -164,12 +183,10 @@ removeToc (t:ts) = t : removeToc ts
 removeToc [] = []
 
 -- add page to wiki
-addToWiki :: Contents a => FileStore -> String -> a -> IO ()
-addToWiki fs fname content = catch
-  (save fs fname auth desc content) $ \(e :: FileStoreError) ->
+addToWiki :: Contents a => FileStore -> String -> String -> String -> a -> IO ()
+addToWiki fs fname auth desc content = catch
+  (save fs fname (Author auth "") desc content) $ \(e :: FileStoreError) ->
        putStrLn ("! Could not add " ++ fname ++ ": " ++ show e)
-    where auth = Author "John MacFarlane" "jgm@berkeley.edu"
-          desc = "Added " ++ fname
 
 -- extract categories from <a ... title="Category:"> tags
 getCategories :: [Tag String] -> [String]
@@ -265,7 +282,7 @@ addResource fs fname url = do
     \(e :: FileStoreError) -> do
        raw <- BC.pack `fmap` openURL' ("http://www.haskell.org" ++ url)
        putStrLn $ "Adding resource: " ++ fname
-       addToWiki fs fname raw
+       addToWiki fs fname "hw2gitit" "Import from haskellwiki" raw
 
 -- promote headers and remove the numbering.  on haskellwiki.org,
 -- the headers start at h2, so we promote everything a level.
