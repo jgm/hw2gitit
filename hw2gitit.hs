@@ -24,11 +24,17 @@ import System.Environment
 import System.Directory
 import System.FilePath
 
+cache :: FilePath
+cache = "cache/"
+
+wiki :: FilePath
+wiki = "wiki"
+
 main :: IO ()
 main = do
   -- Create filestore in 'wiki' directory, unless it exists
-  let fs = gitFileStore "wiki"
-  exists <- doesDirectoryExist "wiki"
+  let fs = gitFileStore wiki
+  exists <- doesDirectoryExist wiki
   unless exists $ initialize fs
   -- Fetch index of all pages from cache or from web (caching results)
   cached <- doesFileExist "pages.cache"
@@ -88,7 +94,7 @@ doPage fs page = do
   -- if page already in the wiki, skip it
   catch (latest fs fname >> putStrLn ("Skipping " ++ fname)) $
        \(e :: FileStoreError) -> do
-    let cachename = "cache/" ++ page' ++ ".html"
+    let cachename = cache ++ page' ++ ".html"
     let cachedir = takeDirectory cachename
     createDirectoryIfMissing True cachedir
     cached <- doesFileExist cachename
@@ -236,7 +242,7 @@ addResource :: FileStore -> String -> String -> IO ()
 addResource fs fname url = do
   catch (latest fs fname >> putStrLn ("Skipping " ++ fname)) $
     \(e :: FileStoreError) -> do
-       let cachename = "cache/" ++ fname
+       let cachename = cache ++ fname
        let cachedir = takeDirectory cachename
        createDirectoryIfMissing True cachedir
        cached <- doesFileExist cachename
