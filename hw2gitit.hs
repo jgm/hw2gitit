@@ -188,8 +188,12 @@ handleLinksImages fs (Link lab (src,tit))
   | "http://www.haskell.org" `isPrefixOf` src =
       let drop_prefix = stripPref "http://www.haskell.org"
       in  handleLinksImages fs (Link lab (drop_prefix src, drop_prefix tit))
+  | "/wikiupload/" `isPrefixOf` src = do  -- uploads like ps and pdf files
+      let fname = "/Upload/" ++ takeFileName src
+      addResource fs fname src
+      return $ Link lab (fname,"")
   | "/haskellwiki/Image:" `isPrefixOf` src =
-      return $ Link lab ("/Image/" ++ stripPref "/haskellwiki/Image:" src,tit)
+      return $ Link lab ("/Image/" ++ stripPref "/haskellwiki/Image:" src,"")
   | "/haskellwiki/" `isPrefixOf` src = do
     let suff = stripPref "/haskellwiki/" src
     if suff == ulToSpace tit then
@@ -198,22 +202,25 @@ handleLinksImages fs (Link lab (src,tit))
        else
           return $ Link lab ('/':tit,tit)
     else
-       return $ Link lab ('/':suff,tit)
+       return $ Link lab ('/':suff,"")
   | otherwise = return $ Link lab (src,tit)
 handleLinksImages fs (Image alt (src,tit))
+  | "http://www.haskell.org" `isPrefixOf` src =
+      let drop_prefix = stripPref "http://www.haskell.org"
+      in  handleLinksImages fs (Image alt (drop_prefix src, drop_prefix tit))
     -- math images have tex source in alt attribute
   | "/wikiupload/math" `isPrefixOf` src =
       return $ Math InlineMath $ stringify alt
   | "/wikiupload/" `isPrefixOf` src = do
-      let fname = takeFileName src
-      addImage fs fname src
-      return $ Image alt ("/Image/" ++ fname,tit)
+      let fname = "/Image/" ++ takeFileName src
+      addResource fs fname src
+      return $ Image alt (fname,"")
   | otherwise = return $ Image alt (src,tit)
 handleLinksImages _ x = return x
 
 -- get image from web or cache and add to repository
-addImage :: FileStore -> String -> String -> IO ()
-addImage fs fname url = do
+addResource :: FileStore -> String -> String -> IO ()
+addResource fs fname url = do
   catch (latest fs fname >> putStrLn ("Skipping " ++ fname)) $
     \(e :: FileStoreError) -> do
        let cachename = "cache/" ++ fname
@@ -225,7 +232,7 @@ addImage fs fname url = do
               else
                  BC.pack `fmap` openURL ("http://www.haskell.org" ++ url)
        unless cached $ B.writeFile cachename raw
-       putStrLn $ "Adding image: " ++ fname
+       putStrLn $ "Adding resource: " ++ fname
        addToWiki fs fname raw
 
 -- promote headers and remove the numbering.  on haskellwiki.org,
