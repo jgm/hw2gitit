@@ -93,7 +93,11 @@ getPageNames (t:ts) = getPageNames ts
 
 -- convert URL to page name
 fromUrl :: String -> String
-fromUrl = ulToSpace . decodeString . unEscapeString
+fromUrl = fromUrlString . decodeString . unEscapeString
+
+-- filestore can't deal with ? and * in filenames
+fromUrlString :: String -> String
+fromUrlString = strip . filter (\c -> c /='?' && c/='*') . ulToSpace
 
 -- get the page from the web or cache, convert it to markdown and
 -- add it to the repository.
@@ -214,7 +218,7 @@ handleLinksImages fs (Link lab (src,tit))
       return $ Link lab ("/Image/" ++ fromUrl (stripPref "/haskellwiki/Image:" src),"")
   | "/haskellwiki/" `isPrefixOf` src = do
     let suff = fromUrl $ stripPref "/haskellwiki/" src
-    if suff == ulToSpace tit then
+    if suff == fromUrlString tit then
        if stringify lab == tit then
           return $ Link lab ("","")
        else
