@@ -33,7 +33,7 @@ main = do
   -- Fetch index of all pages from cache or from web (caching results)
   cached <- doesFileExist "pages.cache"
   pages <- if cached then
-             read `fmap` readFile "page_index"
+             read `fmap` readFile "pages.cache"
            else
              (nub . concat) `fmap` mapM getIndex indices
   unless cached $ writeFile "pages.cache" (show pages)
@@ -52,6 +52,7 @@ indices = ["http://www.haskell.org/haskellwiki/Special:Allpages/%24",
 -- get list of pages listed on index URL
 getIndex :: String -> IO [String]
 getIndex url = do
+  putStrLn $ "Fetching index of pages: " ++ url
   src <- openURL url
   let tags = parseTags src
   return $ getPageNames tags
