@@ -2,9 +2,8 @@
 -- hw2gitit.hs
 -- Creates a git repository 'wiki' containing markdown versions of all
 -- the pages in haskellwiki.
--- The index of pages is cached in pages.cache.
 -- Individual HTML pages and images are cached in cache/.
--- These caches should be deleted for a fresh download.
+-- Cache should be deleted for a fresh download.
 
 import qualified Data.ByteString.Lazy as B
 import qualified Data.ByteString.Lazy.Char8 as BC
@@ -36,30 +35,42 @@ main = do
   let fs = gitFileStore wiki
   exists <- doesDirectoryExist wiki
   unless exists $ initialize fs
-  -- Fetch index of all pages from cache or from web (caching results)
-  cached <- doesFileExist "pages.cache"
-  pages <- if cached then
-             read `fmap` readFile "pages.cache"
-           else
-             (nub . concat) `fmap` mapM getIndex indices
-  unless cached $ writeFile "pages.cache" (show pages)
+  pages <- (nub . concat) `fmap` mapM getIndex indices
   -- Add all pages to the repository
   mapM_ (doPage fs) pages
 
 openURL :: String -> IO String
 openURL x = getResponseBody =<< simpleHTTP (getRequest x)
 
+tr :: Char -> Char -> String -> String
+tr c1 c2 = map (\c -> if c == c1 then c2 else c)
+
+openURL' :: String -> IO String
+openURL' url = do
+  let cachename = cache ++ (tr '/' '+' $ tr '&' '^' $ tr '?' '!' url)
+  let cachedir = takeDirectory cachename
+  createDirectoryIfMissing True cachedir
+  cached <- doesFileExist cachename
+  src <- if cached then
+            readFile cachename
+          else
+            openURL url
+  unless cached $ writeFile cachename src
+  return src
+
 indices :: [String]
-indices = ["http://www.haskell.org/haskellwiki/Special:Allpages/%24",
-           "http://www.haskell.org/haskellwiki/Special:Allpages/G",
-           "http://www.haskell.org/haskellwiki/Special:Allpages/L",
-           "http://www.haskell.org/haskellwiki/Special:Allpages/U"]
+indices =  [ "http://www.haskell.org/haskellwiki/Special:Allpages/L" ] -- FOR TESTING
+--          [ "http://www.haskell.org/haskellwiki/Special:Allpages/%24"
+--          , "http://www.haskell.org/haskellwiki/Special:Allpages/G"
+--          , "http://www.haskell.org/haskellwiki/Special:Allpages/L"
+--          , "http://www.haskell.org/haskellwiki/Special:Allpages/U"
+--          ]
 
 -- get list of pages listed on index URL
 getIndex :: String -> IO [String]
 getIndex url = do
   putStrLn $ "Fetching index of pages: " ++ url
-  src <- openURL url
+  src <- openURL' url
   let tags = parseTags src
   return $ getPageNames tags
 
@@ -94,15 +105,7 @@ doPage fs page = do
   -- if page already in the wiki, skip it
   catch (latest fs fname >> putStrLn ("Skipping " ++ fname)) $
        \(e :: FileStoreError) -> do
-    let cachename = cache ++ page' ++ ".html"
-    let cachedir = takeDirectory cachename
-    createDirectoryIfMissing True cachedir
-    cached <- doesFileExist cachename
-    src <- if cached then
-              readFile cachename
-            else
-              openURL $ "http://www.haskell.org/haskellwiki/" ++ page
-    unless cached $ writeFile cachename src
+    src <- openURL' $ "http://www.haskell.org/haskellwiki/" ++ page
 
     -- convert the page
     let nonSpan (TagOpen "span" _) = False
@@ -242,15 +245,7 @@ addResource :: FileStore -> String -> String -> IO ()
 addResource fs fname url = do
   catch (latest fs fname >> putStrLn ("Skipping " ++ fname)) $
     \(e :: FileStoreError) -> do
-       let cachename = cache ++ fname
-       let cachedir = takeDirectory cachename
-       createDirectoryIfMissing True cachedir
-       cached <- doesFileExist cachename
-       raw <- if cached then
-                 B.readFile cachename
-              else
-                 BC.pack `fmap` openURL ("http://www.haskell.org" ++ url)
-       unless cached $ B.writeFile cachename raw
+       raw <- BC.pack `fmap` openURL' ("http://www.haskell.org" ++ url)
        putStrLn $ "Adding resource: " ++ fname
        addToWiki fs fname raw
 
