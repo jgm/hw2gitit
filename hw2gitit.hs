@@ -60,6 +60,9 @@ getIndex url = do
 stripPref :: String -> String -> String
 stripPref pref s = maybe s id $ stripPrefix pref s
 
+strip :: String -> String
+strip = reverse . dropWhile (==' ') . reverse . dropWhile (==' ')
+
 -- parse index page and return list of URLs for pages
 getPageNames :: [Tag String] -> [String]
 getPageNames [] = []
@@ -71,11 +74,15 @@ getPageNames (t@(TagOpen "a" _) : ts) =
          | otherwise -> getPageNames ts
 getPageNames (t:ts) = getPageNames ts
 
+-- convert URL to page name
+fromUrl :: String -> String
+fromUrl = ulToSpace . decodeString . unEscapeString
+
 -- get the page from the web or cache, convert it to markdown and
 -- add it to the repository.
 doPage :: FileStore -> String -> IO ()
 doPage fs page = do
-  let page' = ulToSpace $ decodeString $ unEscapeString page
+  let page' = fromUrl page
   let dropDots = filter (/='.')
   let fname = dropDots page' ++ ".page"
   -- if page already in the wiki, skip it
@@ -192,13 +199,13 @@ handleLinksImages fs (Link lab (src,tit))
       let drop_prefix = stripPref "http://www.haskell.org" . stripPref "http://haskell.org"
       in  handleLinksImages fs (Link lab (drop_prefix src, drop_prefix tit))
   | "/wikiupload/" `isPrefixOf` src = do  -- uploads like ps and pdf files
-      let fname = "/Upload/" ++ takeFileName src
+      let fname = "Upload/" ++ fromUrl (takeFileName src)
       addResource fs fname src
-      return $ Link lab (fname,"")
+      return $ Link lab ('/':fname,"")
   | "/haskellwiki/Image:" `isPrefixOf` src =
-      return $ Link lab ("/Image/" ++ stripPref "/haskellwiki/Image:" src,"")
+      return $ Link lab ("/Image/" ++ fromUrl (stripPref "/haskellwiki/Image:" src),"")
   | "/haskellwiki/" `isPrefixOf` src = do
-    let suff = stripPref "/haskellwiki/" src
+    let suff = fromUrl $ stripPref "/haskellwiki/" src
     if suff == ulToSpace tit then
        if stringify lab == tit then
           return $ Link lab ("","")
@@ -216,11 +223,11 @@ handleLinksImages fs (Image alt (src,tit))
       in  handleLinksImages fs (Image alt (drop_prefix src, drop_prefix tit))
     -- math images have tex source in alt attribute
   | "/wikiupload/math" `isPrefixOf` src =
-      return $ Math InlineMath $ stringify alt
+      return $ Math InlineMath $ strip $ stringify alt
   | "/wikiupload/" `isPrefixOf` src = do
-      let fname = "/Image/" ++ takeFileName src
+      let fname = "Image/" ++ fromUrl (takeFileName src)
       addResource fs fname src
-      return $ Image alt (fname,"")
+      return $ Image alt ('/':fname,"")
   | otherwise = return $ Image alt (src,tit)
 handleLinksImages _ x = return x
 
