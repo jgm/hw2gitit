@@ -76,10 +76,8 @@ getPageNames (t:ts) = getPageNames ts
 doPage :: FileStore -> String -> IO ()
 doPage fs page = do
   let page' = ulToSpace $ decodeString $ unEscapeString page
-  let dropDot x = case reverse x of
-                       ('.':ys) -> reverse ys
-                       _  -> x
-  let fname = dropDot page' ++ ".page"
+  let dropDots = filter (/='.')
+  let fname = dropDots page' ++ ".page"
   -- if page already in the wiki, skip it
   catch (latest fs fname >> putStrLn ("Skipping " ++ fname)) $
        \(e :: FileStoreError) -> do
