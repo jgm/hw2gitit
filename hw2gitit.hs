@@ -255,8 +255,9 @@ addResource fs fname url = do
 -- promote headers and remove the numbering.  on haskellwiki.org,
 -- the headers start at h2, so we promote everything a level.
 handleHeaders (Header lev xs) = Header (lev - 1) xs'
-  where xs' = dropWhile (==Space) $ dropWhile isNum xs
-        isNum (Str ys) = all (\c -> isDigit c || c == '.') ys
+  where xs' = dropWhile (==Space) $ dropWhile (== Str ".")
+            $ dropWhile (==Space) $ dropWhile isNum xs
+        isNum (Str ys) = all isDigit ys
         isNum z = False
 handleHeaders (Para (LineBreak:xs)) = Para xs
 handleHeaders x = x
