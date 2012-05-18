@@ -7,4 +7,12 @@ Need more ul to space!
 Or, another approach.
 Seems that mw maps spaces in urls to _.
 
+Need some kind of rewrite directive.
+Note that there are three pages w different spellings for
+Monomorphism restriction.  HW seems to use a redirect here,
+since the pages are identical.
+source of
+http://www.haskell.org/haskellwiki/index.php?title=Monomorphism_Restriction&action=edit
+is just:
+#redirect [[Monomorphism restriction]]
 
