@@ -104,7 +104,8 @@ fromUrl = fromUrlString . decodeString . unEscapeString . takeWhile (/='?')
 -- filestore can't deal with ? and * in filenames
 fromUrlString :: String -> String
 fromUrlString =
-  unwords . words . strip . filter (\c -> c /='?' && c/='*') . ulToSpace
+  unwords . words . strip . filter (\c -> c /='?' && c /='*' && c /='.') .
+  ulToSpace
 
 toVersion :: [Tag String] -> Version
 toVersion ts =
@@ -134,21 +135,27 @@ toVersion ts =
 -- add it to the repository.
 doPage :: FileStore -> String -> IO ()
 doPage fs page = do
-  -- get versions
-  src <- openURL' $ "http://www.haskell.org/haskellwiki/index.php?title=" ++ page ++ "&limit=500&action=history"
-  let tags = takeWhile (~/= TagClose "ul")
-           $ dropWhile (~/= TagOpen "ul" [("id","pagehistory")])
-           $ parseTags $ decodeString src
-  let lis = partitions (~== TagOpen "li" []) tags
-  let versions = sortBy (comparing vId) $ map toVersion lis
-  -- let versions = [ Version {vId=1308, vUser="Ashley Y",vDate="23:54, 4 January 2006",vDescription = "Initial commit"}
-  mapM_ (doPageVersion fs page) versions
+  let page' = fromUrl page
+  let fname = page' ++ ".page"
+  -- check to see if page is already in repo. If so, skip
+  catch (latest fs fname >> putStrLn ("Skipping "
+          ++ page' ++ " (already in repository)")) $ \(e :: FileStoreError) ->
+    do
+    unless (e == NotFound) $ error (show e)
+    -- get versions
+    src <- openURL' $ "http://www.haskell.org/haskellwiki/index.php?title=" ++ page ++ "&limit=500&action=history"
+    let tags = takeWhile (~/= TagClose "ul")
+             $ dropWhile (~/= TagOpen "ul" [("id","pagehistory")])
+             $ parseTags $ decodeString src
+    let lis = partitions (~== TagOpen "li" []) tags
+    let versions = sortBy (comparing vId) $ map toVersion lis
+    -- let versions = [ Version {vId=1308, vUser="Ashley Y",vDate="23:54, 4 January 2006",vDescription = "Initial commit"}
+    mapM_ (doPageVersion fs page) versions
 
 doPageVersion :: FileStore -> String -> Version -> IO ()
 doPageVersion fs page version = do
   let page' = fromUrl page
-  let dropDots = filter (/='.')
-  let fname = dropDots page' ++ ".page"
+  let fname = page' ++ ".page"
 
   -- first, check mediawiki source to make sure it's not a redirect page
   mwsrc <- openURL' $ "http://www.haskell.org/haskellwiki/index.php?title=" ++ page ++ "&action=edit"
