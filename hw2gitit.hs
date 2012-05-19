@@ -5,8 +5,8 @@
 -- Individual HTML pages and images are cached in cache/.
 -- Cache should be deleted for a fresh download.
 
--- import Shellish
-import Text.Printf
+import Data.Ord (comparing)
+import Text.Printf (printf)
 import qualified Data.ByteString.Lazy as B
 import qualified Data.ByteString.Lazy.Char8 as BC
 import Prelude hiding (catch)
@@ -107,12 +107,34 @@ fromUrl = fromUrlString . decodeString . unEscapeString . takeWhile (/='?')
 fromUrlString :: String -> String
 fromUrlString = strip . filter (\c -> c /='?' && c/='*') . ulToSpace
 
+toVersion :: [Tag String] -> Version
+toVersion ts =
+  Version{ vId = read id', vUser = auth, vDate = date, vDescription = desc }
+    where id' = fromAttrib "value" $ head rs
+          rs = dropWhile (~/= TagOpen "input" [("type","radio")]) ts
+          auth = case as !! 1 of
+                      (_:TagText x:_) -> x
+                      _ -> "hw2gitit"
+          date = case as !! 0 of
+                      (_:TagText x:_) -> x
+                      _ -> ""
+          desc = case dropWhile (~/= TagOpen "span" [("class","comment")]) ts of
+                        (_:TagText x:_) -> reverse $ drop 1 $ reverse $ drop 1 x
+                        _ -> ""
+          as = partitions (~== TagOpen "a" []) rs
+
 -- get the page from the web or cache, convert it to markdown and
 -- add it to the repository.
 doPage :: FileStore -> String -> IO ()
 doPage fs page = do
-  let versions = [ Version {vId=1308, vUser="Ashley Y",vDate="23:54, 4 January 2006",vDescription = "Initial commit"}
-                 , Version {vId=6557, vUser="BrettGiles",vDate="13:54, 17 October 2006",vDescription = "Added Monad category"} ]
+  -- get versions
+  src <- openURL' $ "http://www.haskell.org/haskellwiki/index.php?title=" ++ page ++ "&limit=500&action=history"
+  let tags = takeWhile (~/= TagComment " end content ")
+           $ dropWhile (~/= TagComment " start content ")
+           $ parseTags src
+  let lis = partitions (~== TagOpen "li" []) tags
+  let versions = sortBy (comparing vId) $ map toVersion lis
+  -- let versions = [ Version {vId=1308, vUser="Ashley Y",vDate="23:54, 4 January 2006",vDescription = "Initial commit"}
   mapM_ (doPageVersion fs page) versions
 
 doPageVersion :: FileStore -> String -> Version -> IO ()
