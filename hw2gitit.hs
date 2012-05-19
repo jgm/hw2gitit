@@ -26,6 +26,7 @@ import System.Environment
 import System.Directory
 import System.FilePath
 import Data.IORef
+import System.IO.Unsafe
 
 data Version = Version { vId :: Integer
                        , vUser :: String
@@ -41,11 +42,10 @@ wiki = "wiki"
 -- a local list of resources that have been included,
 -- to speed things up
 resources :: IORef [String]
-resources = undefined
+resources = unsafePerformIO $ newIORef []
 
 main :: IO ()
 main = do
-  resources <- newIORef []
   -- Create filestore in 'wiki' directory, unless it exists
   let fs = gitFileStore wiki
   exists <- doesDirectoryExist wiki
