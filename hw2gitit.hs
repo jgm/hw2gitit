@@ -108,13 +108,21 @@ fromUrlString = strip . filter (\c -> c /='?' && c/='*') . ulToSpace
 toVersion :: [Tag String] -> Version
 toVersion ts =
   Version{ vId = read id', vUser = auth, vDate = date, vDescription = desc }
-    where id' = fromAttrib "value" $ head rs
-          rs = dropWhile (~/= TagOpen "input" [("type","radio")]) ts
-          auth = case as !! 1 of
-                      (_:TagText x:_) -> x
+    where id' = case rs of
+                   (t:_) -> case fromAttrib "value" t of
+                                  "" -> case as of
+                                          ((t:_):_) -> reverse $ takeWhile isDigit
+                                                       $ reverse $ fromAttrib "href" t
+                                  x  -> x
+                   _     -> error "toVersion, empty rs list"
+          rs = case dropWhile (~/= TagOpen "input" [("type","radio")]) ts of
+                    [] -> ts  -- to handle pages with just one commit
+                    xs -> xs
+          auth = case as of
+                      (_:(_:TagText x:_):_) -> x
                       _ -> "hw2gitit"
-          date = case as !! 0 of
-                      (_:TagText x:_) -> x
+          date = case as of
+                      ((_:TagText x:_):_) -> x
                       _ -> ""
           desc = case dropWhile (~/= TagOpen "span" [("class","comment")]) ts of
                         (_:TagText x:_) -> reverse $ drop 1 $ reverse $ drop 1 x
@@ -127,8 +135,8 @@ doPage :: FileStore -> String -> IO ()
 doPage fs page = do
   -- get versions
   src <- openURL' $ "http://www.haskell.org/haskellwiki/index.php?title=" ++ page ++ "&limit=500&action=history"
-  let tags = takeWhile (~/= TagComment " end content ")
-           $ dropWhile (~/= TagComment " start content ")
+  let tags = takeWhile (~/= TagClose "ul")
+           $ dropWhile (~/= TagOpen "ul" [("id","pagehistory")])
            $ parseTags src
   let lis = partitions (~== TagOpen "li" []) tags
   let versions = sortBy (comparing vId) $ map toVersion lis
