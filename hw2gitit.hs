@@ -77,7 +77,7 @@ getIndex :: String -> IO [String]
 getIndex url = do
   putStrLn $ "Fetching index of pages: " ++ url
   src <- openURL' url
-  let tags = parseTags src
+  let tags = parseTags $ decodeString src
   return $ getPageNames tags
 
 stripPref :: String -> String -> String
@@ -137,7 +137,7 @@ doPage fs page = do
   src <- openURL' $ "http://www.haskell.org/haskellwiki/index.php?title=" ++ page ++ "&limit=500&action=history"
   let tags = takeWhile (~/= TagClose "ul")
            $ dropWhile (~/= TagOpen "ul" [("id","pagehistory")])
-           $ parseTags src
+           $ parseTags $ decodeString src
   let lis = partitions (~== TagOpen "li" []) tags
   let versions = sortBy (comparing vId) $ map toVersion lis
   -- let versions = [ Version {vId=1308, vUser="Ashley Y",vDate="23:54, 4 January 2006",vDescription = "Initial commit"}
@@ -152,7 +152,7 @@ doPageVersion fs page version = do
   -- first, check mediawiki source to make sure it's not a redirect page
   mwsrc <- openURL' $ "http://www.haskell.org/haskellwiki/index.php?title=" ++ page ++ "&action=edit"
   let redir = case (drop 1 $ dropWhile (~/= TagOpen "textarea" [("id","wpTextbox1")])
-                           $ parseTags mwsrc) of
+                           $ parseTags $ decodeString mwsrc) of
                   (TagText ('#':'r':'e':'d':'i':'r':'e':'c':'t':' ':'[':'[':xs):_) ->
                          takeWhile (/=']') xs
                   (TagText ('#':'R':'E':'D':'I':'R':'E':'C':'T':' ':'[':'[':xs):_) ->
@@ -317,7 +317,7 @@ addResource fs fname url = do
 handleHeaders (Header lev xs) = Header (lev - 1) xs'
   where xs' = dropWhile (==Space) $ dropWhile (== Str ".")
             $ dropWhile (==Space) $ dropWhile isNum xs
-        isNum (Str ys) = all isDigit ys
+        isNum (Str ys) = all (\c -> isDigit c || c == '.') ys
         isNum z = False
 handleHeaders (Para (LineBreak:xs)) = Para xs
 handleHeaders x = x
