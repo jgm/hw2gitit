@@ -66,12 +66,11 @@ openURL' url = do
   return src
 
 indices :: [String]
-indices =  [ "http://www.haskell.org/haskellwiki/Special:Allpages/M" ] -- FOR TESTING
---          [ "http://www.haskell.org/haskellwiki/Special:Allpages/%24"
---          , "http://www.haskell.org/haskellwiki/Special:Allpages/G"
---          , "http://www.haskell.org/haskellwiki/Special:Allpages/L"
---          , "http://www.haskell.org/haskellwiki/Special:Allpages/U"
---          ]
+indices =  [ "http://www.haskell.org/haskellwiki/Special:Allpages/%24"
+           , "http://www.haskell.org/haskellwiki/Special:Allpages/G"
+           , "http://www.haskell.org/haskellwiki/Special:Allpages/L"
+           , "http://www.haskell.org/haskellwiki/Special:Allpages/U"
+           ]
 
 -- get list of pages listed on index URL
 getIndex :: String -> IO [String]
