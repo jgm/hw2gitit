@@ -43,7 +43,7 @@ main = do
   let fs = gitFileStore wiki
   exists <- doesDirectoryExist wiki
   unless exists $ initialize fs
-  pages <- (nub . concat) `fmap` mapM getIndex indices
+  pages <- (nub . sort . concat) `fmap` mapM getIndex indices
   -- Add all pages to the repository
   mapM_ (doPage fs) pages
 
