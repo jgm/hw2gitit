@@ -25,6 +25,7 @@ import Text.Pandoc.Shared (stringify)
 import System.Environment
 import System.Directory
 import System.FilePath
+import Data.IORef
 
 data Version = Version { vId :: Integer
                        , vUser :: String
@@ -37,15 +38,22 @@ cache = "cache"
 wiki :: FilePath
 wiki = "wiki"
 
+-- a local list of resources that have been included,
+-- to speed things up
+resources :: IORef [String]
+resources = undefined
+
 main :: IO ()
 main = do
+  resources <- newIORef []
   -- Create filestore in 'wiki' directory, unless it exists
   let fs = gitFileStore wiki
   exists <- doesDirectoryExist wiki
   unless exists $ initialize fs
   pages <- (nub . sort . concat) `fmap` mapM getIndex indices
-  -- Add all pages to the repository
-  mapM_ (doPage fs) pages
+  index <- index fs
+  -- Add all pages to the repository, except those already there
+  mapM_ (doPage fs) [(fromUrl p,p) | p <- pages, p `notElem` index]
 
 openURL :: String -> IO String
 openURL x = getResponseBody =<< simpleHTTP (getRequest x)
@@ -137,28 +145,19 @@ toVersion ts =
 
 -- get the page from the web or cache, convert it to markdown and
 -- add it to the repository.
-doPage :: FileStore -> String -> IO ()
-doPage fs page = do
-  let page' = fromUrl page
-  let fname = page' ++ ".page"
-  -- check to see if page is already in repo. If so, skip
-  catch (latest fs fname >> putStrLn ("Skipping "
-          ++ page' ++ " (already in repository)")) $ \(e :: FileStoreError) ->
-    do
-    unless (e == NotFound) $ error (show e)
-    -- get versions
-    src <- openURL' $ "http://www.haskell.org/haskellwiki/index.php?title=" ++ page ++ "&limit=500&action=history"
-    let tags = takeWhile (~/= TagClose "ul")
-             $ dropWhile (~/= TagOpen "ul" [("id","pagehistory")])
-             $ parseTags $ decodeString src
-    let lis = partitions (~== TagOpen "li" []) tags
-    let versions = sortBy (comparing vId) $ map toVersion lis
-    -- let versions = [ Version {vId=1308, vUser="Ashley Y",vDate="23:54, 4 January 2006",vDescription = "Initial commit"}
-    mapM_ (doPageVersion fs page) versions
+doPage :: FileStore -> (String,String) -> IO ()
+doPage fs (page',page) = do
+  src <- openURL' $ "http://www.haskell.org/haskellwiki/index.php?title=" ++ page ++ "&limit=500&action=history"
+  let tags = takeWhile (~/= TagClose "ul")
+           $ dropWhile (~/= TagOpen "ul" [("id","pagehistory")])
+           $ parseTags $ decodeString src
+  let lis = partitions (~== TagOpen "li" []) tags
+  let versions = sortBy (comparing vId) $ map toVersion lis
+  -- let versions = [ Version {vId=1308, vUser="Ashley Y",vDate="23:54, 4 January 2006",vDescription = "Initial commit"}
+  mapM_ (doPageVersion fs (page',page)) versions
 
-doPageVersion :: FileStore -> String -> Version -> IO ()
-doPageVersion fs page version = do
-  let page' = fromUrl page
+doPageVersion :: FileStore -> (String,String) -> Version -> IO ()
+doPageVersion fs (page',page) version = do
   let fname = page' ++ ".page"
 
   -- first, check mediawiki source to make sure it's not a redirect page
@@ -318,11 +317,14 @@ handleLinksImages _ x = return x
 -- get image from web or cache and add to repository
 addResource :: FileStore -> String -> String -> IO ()
 addResource fs fname url = do
-  catch (latest fs fname >> putStrLn ("Skipping " ++ fname)) $
-    \(e :: FileStoreError) -> do
-       raw <- BC.pack `fmap` openURL' ("http://www.haskell.org" ++ url)
-       putStrLn $ "Adding resource: " ++ fname
-       addToWiki fs fname "hw2gitit" "Import from haskellwiki" raw
+  res <- readIORef resources
+  unless (fname `elem` res) $ do
+    catch (latest fs fname >> putStrLn ("Skipping " ++ fname)) $
+      \(e :: FileStoreError) -> do
+         raw <- BC.pack `fmap` openURL' ("http://www.haskell.org" ++ url)
+         putStrLn $ "Adding resource: " ++ fname
+         modifyIORef resources (fname:)
+         addToWiki fs fname "hw2gitit" "Import from haskellwiki" raw
 
 -- remove numbering from headers.
 handleHeaders (Header lev xs) = Header lev xs'
