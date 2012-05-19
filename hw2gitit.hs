@@ -50,11 +50,12 @@ main = do
   let fs = gitFileStore wiki
   exists <- doesDirectoryExist wiki
   unless exists $ initialize fs
-  pages <- (nub . sort . concat) `fmap` mapM getIndex indices
-  index <- index fs
+  pages <- (nub . concat) `fmap` mapM getIndex indices
+  ind <- index fs
+  let pagepairs = sort
+        [(fromUrl p,p) | p <- pages, (fromUrl p ++ ".page") `notElem` ind]
   -- Add all pages to the repository, except those already there
-  mapM_ (doPage fs)
-    [(fromUrl p,p) | p <- pages, (fromUrl p ++ ".page") `notElem` index]
+  mapM_ (doPage fs) pagepairs
 
 openURL :: String -> IO String
 openURL x = getResponseBody =<< simpleHTTP (getRequest x)
