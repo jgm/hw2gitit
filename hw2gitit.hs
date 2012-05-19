@@ -53,7 +53,8 @@ main = do
   pages <- (nub . sort . concat) `fmap` mapM getIndex indices
   index <- index fs
   -- Add all pages to the repository, except those already there
-  mapM_ (doPage fs) [(fromUrl p,p) | p <- pages, p `notElem` index]
+  mapM_ (doPage fs)
+    [(fromUrl p,p) | p <- pages, (fromUrl p ++ ".page") `notElem` index]
 
 openURL :: String -> IO String
 openURL x = getResponseBody =<< simpleHTTP (getRequest x)
