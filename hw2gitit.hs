@@ -103,9 +103,13 @@ fromUrl = fromUrlString . decodeString . unEscapeString . takeWhile (/='?')
 
 -- filestore can't deal with ? and * in filenames
 fromUrlString :: String -> String
-fromUrlString =
-  unwords . words . strip . filter (\c -> c /='?' && c /='*' && c /='.') .
-  ulToSpace
+fromUrlString = removeDoubleDots .
+  unwords . words . strip . filter (\c -> c /='?' && c /='*') . ulToSpace
+
+removeDoubleDots :: String -> String
+removeDoubleDots ('.':'.':xs) = '.':removeDoubleDots xs
+removeDoubleDots (x:xs) = x:removeDoubleDots xs
+removeDoubleDots [] = []
 
 toVersion :: [Tag String] -> Version
 toVersion ts =
