@@ -44,8 +44,7 @@ main = do
   unless exists $ initialize fs
   pages <- (nub . concat) `fmap` mapM getIndex indices
   -- Add all pages to the repository
-  -- mapM_ (doPage fs) pages
-  doPage fs "Monad"
+  mapM_ (doPage fs) pages
 
 openURL :: String -> IO String
 openURL x = getResponseBody =<< simpleHTTP (getRequest x)
