@@ -5,6 +5,7 @@
 -- Individual HTML pages and images are cached in cache/.
 -- Cache should be deleted for a fresh download.
 
+import Codec.Digest.SHA
 import Data.Ord (comparing)
 import Text.Printf (printf)
 import qualified Data.ByteString.Lazy as B
@@ -31,7 +32,7 @@ data Version = Version { vId :: Integer
                        , vDescription :: String } deriving (Show)
 
 cache :: FilePath
-cache = "cache/"
+cache = "cache"
 
 wiki :: FilePath
 wiki = "wiki"
@@ -54,9 +55,8 @@ tr c1 c2 = map (\c -> if c == c1 then c2 else c)
 
 openURL' :: String -> IO String
 openURL' url = do
-  let cachename = cache ++ (tr '/' '+' $ tr '&' '^' $ tr '?' '~' url)
-  let cachedir = takeDirectory cachename
-  createDirectoryIfMissing True cachedir
+  let cachename = cache ++ "/" ++ (showBSasHex $ hash SHA256 $ BC.pack url)
+  createDirectoryIfMissing True cache
   cached <- doesFileExist cachename
   src <- if cached then
             readFile cachename
