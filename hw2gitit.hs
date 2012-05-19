@@ -312,9 +312,8 @@ addResource fs fname url = do
        putStrLn $ "Adding resource: " ++ fname
        addToWiki fs fname "hw2gitit" "Import from haskellwiki" raw
 
--- promote headers and remove the numbering.  on haskellwiki.org,
--- the headers start at h2, so we promote everything a level.
-handleHeaders (Header lev xs) = Header (lev - 1) xs'
+-- remove numbering from headers.
+handleHeaders (Header lev xs) = Header lev xs'
   where xs' = dropWhile (==Space) $ dropWhile (== Str ".")
             $ dropWhile (==Space) $ dropWhile isNum xs
         isNum (Str ys) = all (\c -> isDigit c || c == '.') ys
