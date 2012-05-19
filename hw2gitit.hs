@@ -103,7 +103,8 @@ fromUrl = fromUrlString . decodeString . unEscapeString . takeWhile (/='?')
 
 -- filestore can't deal with ? and * in filenames
 fromUrlString :: String -> String
-fromUrlString = strip . filter (\c -> c /='?' && c/='*') . ulToSpace
+fromUrlString =
+  unwords . words . strip . filter (\c -> c /='?' && c/='*') . ulToSpace
 
 toVersion :: [Tag String] -> Version
 toVersion ts =
@@ -191,7 +192,7 @@ doPageVersion fs page version = do
   doc'' <- bottomUpM (handleLinksImages fs) doc'
   let md = if null redir
               then writeMarkdown defaultWriterOptions doc''
-              else "See [" ++ redir ++ "]()."
+              else "See [" ++ fromUrlString redir ++ "]()."
   -- add header with categories
   putStrLn $ "Adding page " ++ page' ++ " r" ++ show (vId version)
   let auth = vUser version
