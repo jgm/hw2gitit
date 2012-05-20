@@ -206,7 +206,7 @@ doPageVersion fs (page',page) version = do
   doc'' <- bottomUpM (handleLinksImages fs subdir) doc'
   let md = if null redir
               then writeMarkdown defaultWriterOptions doc''
-              else "See [" ++ fromUrlString redir ++ "]('/':fromUrlString redir)."
+              else "See [" ++ fromUrlString redir ++ "](" ++ '/':fromUrlString redir ++ ")."
   -- add header with categories
   putStrLn $ "Adding page " ++ page' ++ " r" ++ show (vId version)
   let auth = vUser version
