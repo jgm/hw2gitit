@@ -293,7 +293,10 @@ handleLinksImages fs insubdir (Link lab (src,tit))
       return $ Link lab ("/Image/" ++ fromUrl (stripPref "/haskellwiki/Image:" src),"")
   | "/haskellwiki/" `isPrefixOf` src = do
     let suff = fromUrl $ stripPref "/haskellwiki/" src
-    if suff == fromUrlString tit then
+    let suff' = if "Category:" `isPrefixOf` suff
+                   then "_category/" ++ drop 9 suff
+                   else suff
+    if suff' == fromUrlString tit then
        if stringify lab == tit then
           if insubdir then                    -- in gitit a link is relative
             return $ Link lab ('/':tit,"")    -- this will change in gitit2
@@ -302,7 +305,7 @@ handleLinksImages fs insubdir (Link lab (src,tit))
        else
           return $ Link lab ('/':tit,tit)
     else
-       return $ Link lab ('/':suff,"")
+       return $ Link lab ('/':suff',"")
   | otherwise = return $ Link lab (src,tit)
 handleLinksImages fs insubdir (Image alt (src,tit))
   | "http://www.haskell.org/haskellwiki" `isPrefixOf` src ||
