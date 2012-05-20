@@ -117,7 +117,7 @@ fromUrlString =
   unwords . words . strip . filter (\c -> c /='?' && c /='*') . ulToSpace
 
 removeDoubleDots :: String -> String
-removeDoubleDots ('.':'.':xs) = '.':removeDoubleDots xs
+removeDoubleDots ('.':'.':xs) = removeDoubleDots ('.':xs)
 removeDoubleDots ['.'] = []
 removeDoubleDots (x:xs) = x:removeDoubleDots xs
 removeDoubleDots [] = []
