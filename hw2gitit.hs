@@ -202,10 +202,11 @@ doPageVersion fs (page',page) version = do
              $ bottomUp (handleHeaders . fixCodeBlocks . removeRawBlocks)
              $ readHtml defaultParserState html
   -- handle wikilinks and images
-  doc'' <- bottomUpM (handleLinksImages fs) doc'
+  let subdir = not $ null $ takeDirectory fname
+  doc'' <- bottomUpM (handleLinksImages fs subdir) doc'
   let md = if null redir
               then writeMarkdown defaultWriterOptions doc''
-              else "See [" ++ fromUrlString redir ++ "]()."
+              else "See [" ++ fromUrlString redir ++ "]('/':fromUrlString redir)."
   -- add header with categories
   putStrLn $ "Adding page " ++ page' ++ " r" ++ show (vId version)
   let auth = vUser version
@@ -276,14 +277,14 @@ handleInlineCode [] = []
 
 -- Handle links and images, converting URLs and fetching images when needed,
 -- adding them to the repository.
-handleLinksImages :: FileStore -> Inline -> IO Inline
-handleLinksImages fs (Link lab (src,tit))
+handleLinksImages :: FileStore -> Bool -> Inline -> IO Inline
+handleLinksImages fs insubdir (Link lab (src,tit))
   | "http://www.haskell.org/haskellwiki" `isPrefixOf` src ||
     "http://www.haskell.org/wikiupload" `isPrefixOf` src ||
     "http://haskell.org/haskellwiki" `isPrefixOf` src ||
     "http://haskell.org/wikiupload" `isPrefixOf` src =
       let drop_prefix = stripPref "http://www.haskell.org" . stripPref "http://haskell.org"
-      in  handleLinksImages fs (Link lab (drop_prefix src, drop_prefix tit))
+      in  handleLinksImages fs insubdir (Link lab (drop_prefix src, drop_prefix tit))
   | "/wikiupload/" `isPrefixOf` src = do  -- uploads like ps and pdf files
       let fname = "Upload/" ++ fromUrl (takeFileName src)
       addResource fs fname src
@@ -294,19 +295,22 @@ handleLinksImages fs (Link lab (src,tit))
     let suff = fromUrl $ stripPref "/haskellwiki/" src
     if suff == fromUrlString tit then
        if stringify lab == tit then
-          return $ Link lab ("","")
+          if insubdir then                    -- in gitit a link is relative
+            return $ Link lab ('/':tit,"")    -- this will change in gitit2
+          else
+            return $ Link lab ("","")
        else
           return $ Link lab ('/':tit,tit)
     else
        return $ Link lab ('/':suff,"")
   | otherwise = return $ Link lab (src,tit)
-handleLinksImages fs (Image alt (src,tit))
+handleLinksImages fs insubdir (Image alt (src,tit))
   | "http://www.haskell.org/haskellwiki" `isPrefixOf` src ||
     "http://www.haskell.org/wikiupload" `isPrefixOf` src ||
     "http://haskell.org/haskellwiki" `isPrefixOf` src ||
     "http://haskell.org/wikiupload" `isPrefixOf` src =
       let drop_prefix = stripPref "http://www.haskell.org" . stripPref "http://haskell.org"
-      in  handleLinksImages fs (Image alt (drop_prefix src, drop_prefix tit))
+      in  handleLinksImages fs insubdir (Image alt (drop_prefix src, drop_prefix tit))
     -- math images have tex source in alt attribute
   | "/wikiupload/math" `isPrefixOf` src =
       return $ Math InlineMath $ strip $ stringify alt
@@ -315,7 +319,7 @@ handleLinksImages fs (Image alt (src,tit))
       addResource fs fname src
       return $ Image alt ('/':fname,"")
   | otherwise = return $ Image alt (src,tit)
-handleLinksImages _ x = return x
+handleLinksImages _ _ x = return x
 
 -- get image from web or cache and add to repository
 addResource :: FileStore -> String -> String -> IO ()
